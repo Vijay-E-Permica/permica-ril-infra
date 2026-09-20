@@ -15,6 +15,10 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.5"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
   }
 }
 
@@ -22,10 +26,15 @@ provider "google" {
   region = var.region
 }
 
+# Unique suffix generator for project IDs (<app>-<env>-<id>)
+resource "random_id" "project_suffix" {
+  byte_length = 3
+}
+
 locals {
   envs = {
-    dev  = { project_id = var.dev_project_id, deploy_branch = var.dev_branch }
-    prod = { project_id = var.prod_project_id, deploy_branch = var.prod_branch }
+    dev  = { project_id = coalesce(var.dev_project_id, "${var.app_name}-dev-${random_id.project_suffix.hex}"), deploy_branch = var.dev_branch }
+    prod = { project_id = coalesce(var.prod_project_id, "${var.app_name}-prod-${random_id.project_suffix.hex}"), deploy_branch = var.prod_branch }
   }
 
   bootstrap_apis = [
