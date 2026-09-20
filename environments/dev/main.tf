@@ -1,3 +1,4 @@
+# Dev environment infrastructure configuration.
 module "stack" {
   source = "../../modules/stack"
 
