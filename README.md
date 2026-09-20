@@ -27,7 +27,7 @@ GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
 │   └── prod/             # Prod layer (calls modules/stack with HA & scaling settings)
 ├── scripts/              # Automation helper bash scripts (update/delete GitHub vars, fetch secrets)
 ├── .github/workflows/    # CI/CD pipelines (terraform-dev.yml, terraform-prod.yml)
-└── docs/                 # Example workflows (e.g. app deployment guide)
+└── docs/                 # Guides & example workflows (app deployment, component upgrades)
 ```
 
 ## Architecture Diagram
@@ -213,7 +213,7 @@ Key infrastructure settings configured to prevent unexpected GCP billing charges
 | **Cloud SQL** | Single-zone (`db-f1-micro`) | Regional High-Availability (`db-custom-2-7680`) | Prod runs HA failover instance for reliability; dev runs low-cost micro tier. |
 | **Cloud Run** | Scales to `0` (`min_instances = 0`) | Keeps warm (`min_instances = 1`) | Dev incurs zero compute costs when idle; prod stays warm to avoid cold starts. |
 
-> **Cost Optimization Tip**: Adjust instance sizes and scaling parameters in `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars` based on actual traffic requirements.
+> **Cost Optimization & Sizing Tip**: Adjust instance sizes and scaling parameters in `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars` based on actual traffic requirements. For step-by-step instructions on scaling Cloud SQL tiers, disk space, or compute resources without data loss, see the [Upgrading Components Guide](docs/upgrading-components.md).
 
 
 
