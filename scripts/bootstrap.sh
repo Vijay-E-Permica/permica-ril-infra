@@ -21,14 +21,22 @@ fi
 cd "$BOOTSTRAP_DIR"
 
 echo "==> Initializing local Terraform workspace in $BOOTSTRAP_DIR..."
-rm -rf "$BOOTSTRAP_DIR/.terraform"
-# Check if state bucket output or backend configuration exists
-STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
+if [ -f "$BOOTSTRAP_DIR/terraform.tfstate" ]; then
+  STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
+fi
 
-if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
-  echo "==> Initializing backend with bucket '$STATE_BUCKET'..."
+if [ -n "${STATE_BUCKET:-}" ] && [ "$STATE_BUCKET" != "null" ]; then
+  echo "==> Initializing backend with GCS bucket '$STATE_BUCKET'..."
+  # Re-create backend.tf on the fly for GCS remote state initialization
+  cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
+terraform {
+  backend "gcs" {}
+}
+EOF
   terraform init -reconfigure -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
 else
+  echo "==> Initializing local Terraform workspace..."
+  rm -f "$BOOTSTRAP_DIR/backend.tf"
   terraform init -backend=false -reconfigure -input=false
 fi
 
@@ -82,6 +90,11 @@ STATE_BUCKET=$(terraform output -json state_buckets | jq -r 'to_entries[0].value
 
 if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
   echo "==> Migrating bootstrap state to GCS bucket '$STATE_BUCKET'..."
+  cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
+terraform {
+  backend "gcs" {}
+}
+EOF
   terraform init -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
   rm -f "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
   echo "==> Bootstrap state successfully migrated to GCS bucket '$STATE_BUCKET'!"
