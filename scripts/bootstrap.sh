@@ -20,6 +20,9 @@ fi
 
 cd "$BOOTSTRAP_DIR"
 
+# Clean any previous temp backend config prior to fresh init
+rm -f "$BOOTSTRAP_DIR/backend.tf"
+
 echo "==> Initializing Terraform in $BOOTSTRAP_DIR..."
 terraform init -input=false
 
