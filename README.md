@@ -111,9 +111,23 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
 
 ## Environment variables your app receives
 
-`ENVIRONMENT`, `GCP_PROJECT`, `DB_INSTANCE_CONNECTION_NAME`, `DB_SOCKET_DIR` (`/cloudsql`), `DB_NAME`,
-`DB_USER`, `DB_PASSWORD` (secret), `STORAGE_BUCKET`, and `BIGTABLE_INSTANCE_ID` when Bigtable is enabled.
-Connect to Postgres over the unix socket `/cloudsql/<DB_INSTANCE_CONNECTION_NAME>`.
+Terraform automatically injects the following environment variables into your Cloud Run container at runtime. Your Python app can access them directly (e.g. `os.getenv("DB_PASSWORD")`).
+
+| Variable | Description | Usage |
+|---|---|---|
+| `ENVIRONMENT` | Target environment (`dev` or `prod`) | Runtime environment flags or logging levels |
+| `GCP_PROJECT` | GCP Project ID | Configuring GCP SDK clients |
+| `DB_INSTANCE_CONNECTION_NAME` | Cloud SQL instance connection string (`project:region:instance`) | Cloud SQL socket connection target |
+| `DB_SOCKET_DIR` | Unix domain socket directory (`/cloudsql`) | DB connection socket directory |
+| `DB_NAME` | PostgreSQL database name | Database name to connect to |
+| `DB_USER` | PostgreSQL user account | Database user login |
+| `DB_PASSWORD` | PostgreSQL password *(Mounted from Secret Manager)* | DB authentication password |
+| `STORAGE_BUCKET` | Dedicated GCS bucket name | Application file storage & asset uploads |
+| `BIGTABLE_INSTANCE_ID` | Bigtable instance ID *(Optional)* | Bigtable client connection *(when enabled)* |
+
+> **Connecting to PostgreSQL**: Connect over the unix socket `/cloudsql/<DB_INSTANCE_CONNECTION_NAME>`.
+
+
 
 ## Cost notes
 
