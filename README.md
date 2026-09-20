@@ -161,33 +161,65 @@ Key architectural & security choices governing this codebase:
 
 ## Adding a new environment (e.g. staging)
 
-To create an additional environment (e.g. `staging`):
+Follow this 5-step workflow to add a new environment layer (such as `staging` or `qa`) to the infrastructure:
 
-1. **Update `bootstrap` configuration**:
-   - Declare `staging_project_id` and optional `staging_branch` in [bootstrap/variables.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/variables.tf).
-   - Add `staging` to `locals.envs` in [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf).
-   - Set `staging_project_id` in `bootstrap/terraform.tfvars`.
+| Step | Task | Action | Output / Result |
+|---|---|---|---|
+| **1. Bootstrap Config** | Update variables & map | Add `staging_project_id` to `variables.tf`, `locals.envs` in `main.tf`, & `terraform.tfvars`. | Defines environment target in bootstrap layer |
+| **2. Environment Directory** | Duplicate dev folder | `cp -r environments/dev environments/staging` | Creates new environment configuration root |
+| **3. Provision Infrastructure** | Apply bootstrap | Run `cd bootstrap && terraform apply` | Provisions GCP project, state bucket, SAs & generates `backend.tf` |
+| **4. GitHub CI Workflow** | Create workflow file | Copy `terraform-dev.yml` to `terraform-staging.yml` & update triggers/SAs. | Automates CI/CD planning & applying for staging |
+| **5. Sync Repository Vars** | Update GitHub variables | Run `./scripts/update_github_vars.sh` | Configures GitHub Actions repository variables |
 
-2. **Create environment folder**:
-   ```bash
-   cp -r environments/dev environments/staging
+### Detailed Step-by-Step Instructions
+
+#### Step 1: Update Bootstrap Configuration
+1. Declare the project ID variable in [bootstrap/variables.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/variables.tf):
+   ```hcl
+   variable "staging_project_id" {
+     type = string
+   }
+   variable "staging_branch" {
+     type    = string
+     default = "staging"
+   }
    ```
-   Edit `environments/staging/terraform.tfvars` with the staging project ID and sizing preferences.
-
-3. **Apply bootstrap**:
-   ```bash
-   cd bootstrap && terraform apply
+2. Register the environment in `locals.envs` inside [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf):
+   ```hcl
+   staging = { project_id = var.staging_project_id, deploy_branch = var.staging_branch }
    ```
-   This provisions the GCP project, GCS state bucket, service accounts, and generates `environments/staging/backend.tf`.
+3. Add `staging_project_id = "permica-ai-staging-134567"` to `bootstrap/terraform.tfvars`.
 
-4. **Add GitHub Workflow**:
-   - Copy `.github/workflows/terraform-dev.yml` to `.github/workflows/terraform-staging.yml`.
-   - Update branch triggers and variable names (`GCP_STAGING_WIF_PROVIDER`, `GCP_STAGING_APPLY_SA`).
+#### Step 2: Create Environment Folder
+Copy the existing `dev` environment as a starting baseline:
+```bash
+cp -r environments/dev environments/staging
+```
+Edit `environments/staging/terraform.tfvars` to set `project_id = "permica-ai-staging-134567"` and adjust scaling/resource sizing.
 
-5. **Update GitHub repo variables**:
-   ```bash
-   ./scripts/update_github_vars.sh
-   ```
+#### Step 3: Run Bootstrap Apply
+Execute Terraform from the bootstrap directory:
+```bash
+cd bootstrap && terraform apply
+```
+*This creates the GCP project, GCS state bucket (`permica-ai-staging-134567-tfstate`), IAM permissions, and automatically outputs `environments/staging/backend.tf`.*
+
+#### Step 4: Add GitHub Workflow
+Copy the dev workflow to create the staging CI pipeline:
+```bash
+cp .github/workflows/terraform-dev.yml .github/workflows/terraform-staging.yml
+```
+Edit `.github/workflows/terraform-staging.yml`:
+- Set trigger branch: `branches: [ staging ]`
+- Update environment variables to reference `STAGING` service accounts (`GCP_STAGING_WIF_PROVIDER`, `GCP_STAGING_APPLY_SA`).
+
+#### Step 5: Sync GitHub Variables
+Sync all new Terraform outputs directly to GitHub Actions repo variables:
+```bash
+./scripts/update_github_vars.sh
+```
+
+
 
 ## Status
 
