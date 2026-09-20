@@ -301,40 +301,23 @@ Sync the environment's Terraform outputs to GitHub Actions repo variables:
 ## Destroying an environment
 
 > [!WARNING]
-> Destroying an environment permanently removes all infrastructure resources (Cloud SQL databases, Cloud Storage buckets, Cloud Run services). Ensure you back up critical data prior to destruction.
+> Destroying an environment permanently removes all infrastructure resources (Cloud SQL databases, Cloud Storage buckets, Cloud Run services), state buckets, GitHub variables, and the GCP project. Ensure you back up critical data prior to destruction.
 
 To dismantle and delete a specific environment (e.g., `dev` or a custom environment like `staging`):
 
-### Step 1: Destroy Environment Infrastructure
+### Option A: Via Helper Bash Script (Recommended)
+Run the automated teardown script for the target environment:
+```bash
+./scripts/destroy.sh dev      # Teardown dev environment & project
+./scripts/destroy.sh staging  # Teardown staging environment & project
+```
 
-#### Option A: Via GitHub Actions (Manual Workflow Dispatch)
+### Option B: Via GitHub Actions (Manual Workflow Dispatch)
 1. Go to **GitHub Repo -> Actions -> Terraform Destroy (dev)**.
 2. Click **Run workflow**.
 3. Type **`DESTROY`** in the confirmation prompt input and click **Run workflow**.
 
-#### Option B: Via Local Terminal
-Navigate to the environment directory and run `terraform destroy`:
-```bash
-cd environments/dev
-terraform init
-terraform destroy -var-file=terraform.tfvars
-```
 
-
-### Step 2: (Optional) Remove Environment from Bootstrap & GCP Project
-If you wish to completely remove the project, state bucket, and CI service accounts for that environment:
-1. Delete the GitHub repository variables associated with the environment:
-   ```bash
-   ./scripts/delete_github_vars.sh dev   # Replace 'dev' with target env (e.g. staging)
-   ```
-2. Remove the environment entry from `locals.envs` in [bootstrap/main.tf](bootstrap/main.tf).
-3. Apply the change in `bootstrap/`:
-   ```bash
-   cd bootstrap
-   terraform apply
-   ```
-   *(Note: `deletion_protection` is enabled for production projects by default; set `deletion_policy = "DELETE"` or remove project protection if destroying prod).*
-4. Remove the corresponding workflow file `.github/workflows/terraform-<env>.yml`.
 
 ## Status
 
