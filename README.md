@@ -135,8 +135,39 @@ Replace `myapp` and `myorg/myapp-infra` in `bootstrap/terraform.tfvars` and both
 `environments/*/terraform.tfvars`. Service account IDs are `<app>-<env>-runtime|deployer`
 and must stay ≤ 30 characters, so keep `app_name` short.
 
+## Adding a new environment (e.g. staging)
+
+To create an additional environment (e.g. `staging`):
+
+1. **Update `bootstrap` configuration**:
+   - Declare `staging_project_id` and optional `staging_branch` in [bootstrap/variables.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/variables.tf).
+   - Add `staging` to `locals.envs` in [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf).
+   - Set `staging_project_id` in `bootstrap/terraform.tfvars`.
+
+2. **Create environment folder**:
+   ```bash
+   cp -r environments/dev environments/staging
+   ```
+   Edit `environments/staging/terraform.tfvars` with the staging project ID and sizing preferences.
+
+3. **Apply bootstrap**:
+   ```bash
+   cd bootstrap && terraform apply
+   ```
+   This provisions the GCP project, GCS state bucket, service accounts, and generates `environments/staging/backend.tf`.
+
+4. **Add GitHub Workflow**:
+   - Copy `.github/workflows/terraform-dev.yml` to `.github/workflows/terraform-staging.yml`.
+   - Update branch triggers and variable names (`GCP_STAGING_WIF_PROVIDER`, `GCP_STAGING_APPLY_SA`).
+
+5. **Update GitHub repo variables**:
+   ```bash
+   ./scripts/update_github_vars.sh
+   ```
+
 ## Status
 
 The HCL and workflow YAML in this package were syntax-checked and cross-checked (every variable
 declared/used, every module call matches its module), but it has **not** been applied against a live GCP
 account. Expect to fix small provider or permission details on the first `terraform plan`.
+
