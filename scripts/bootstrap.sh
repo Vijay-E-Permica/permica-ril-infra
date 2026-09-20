@@ -21,7 +21,7 @@ fi
 cd "$BOOTSTRAP_DIR"
 
 echo "==> Initializing local Terraform workspace in $BOOTSTRAP_DIR..."
-terraform init -backend=false -input=false
+terraform init -backend=false -reconfigure -input=false
 
 if [ -n "$TARGET_ENV" ]; then
   echo "==> Running bootstrap terraform apply targeting environment '$TARGET_ENV'..."
