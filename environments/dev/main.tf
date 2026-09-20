@@ -16,10 +16,11 @@ module "stack" {
   min_instances         = 0
   max_instances         = 3
 
-  enable_bigtable  = var.enable_bigtable
-  bigtable_tables  = var.bigtable_tables
-  scheduler_jobs   = var.scheduler_jobs
-  extra_secret_env = var.extra_secret_env
+  enable_bigtable     = var.enable_bigtable
+  bigtable_tables     = var.bigtable_tables
+  scheduler_jobs      = var.scheduler_jobs
+  extra_secret_env    = var.extra_secret_env
+  allow_public_access = var.allow_public_access
 
   # Developers can deploy, read logs and add secret values in dev.
   developer_members = var.developer_members
