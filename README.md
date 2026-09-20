@@ -30,6 +30,57 @@ GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
 └── docs/                 # Example workflows (e.g. app deployment guide)
 ```
 
+## Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph GitHub["GitHub Actions CI/CD"]
+        PR["Pull Request (develop / main)"] -->|OIDC Auth / WIF| Plan["terraform plan (read-only)"]
+        Merge["Merge (develop / main)"] -->|OIDC Auth / WIF| Apply["terraform apply"]
+    end
+
+    subgraph GCP["Google Cloud Platform (GCP)"]
+        subgraph Bootstrap["Bootstrap Infrastructure"]
+            Pool["Workload Identity Pool (github)"]
+            PoolProvider["Workload Identity Provider"]
+            StateBucketDev[("GCS State Bucket (dev)")]
+            StateBucketProd[("GCS State Bucket (prod)")]
+        end
+
+        subgraph DevProject["Dev Project (permica-ai-dev)"]
+            subgraph ServicesDev["Application Stack (dev)"]
+                CR_Dev["Cloud Run (Python API)"]
+                DB_Dev[("Cloud SQL (Postgres 17)")]
+                GCS_Dev[("Cloud Storage Bucket")]
+                SM_Dev["Secret Manager (db-password, jwt-secret)"]
+                AR_Dev["Artifact Registry"]
+                BT_Dev[("Bigtable (optional)")]
+            end
+        end
+
+        subgraph ProdProject["Prod Project (permica-ai-prod)"]
+            subgraph ServicesProd["Application Stack (prod)"]
+                CR_Prod["Cloud Run (Python API)"]
+                DB_Prod[("Cloud SQL HA (Postgres 17)")]
+                GCS_Prod[("Cloud Storage Bucket")]
+                SM_Prod["Secret Manager (db-password, jwt-secret)"]
+                AR_Prod["Artifact Registry"]
+                BT_Prod[("Bigtable (optional)")]
+            end
+        end
+    end
+
+    Apply -->|Deploy Dev| DevProject
+    Apply -->|Deploy Prod| ProdProject
+    CR_Dev -->|Unix Socket / Cloud SQL Connector| DB_Dev
+    CR_Dev -->|Mount Secrets| SM_Dev
+    CR_Dev -->|Read/Write| GCS_Dev
+
+    CR_Prod -->|Unix Socket / Cloud SQL Connector| DB_Prod
+    CR_Prod -->|Mount Secrets| SM_Prod
+    CR_Prod -->|Read/Write| GCS_Prod
+```
+
 ## How several people share it safely
 
 | Concern | How it is handled |
