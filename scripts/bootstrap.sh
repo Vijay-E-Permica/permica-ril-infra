@@ -96,9 +96,12 @@ terraform {
 }
 EOF
   terraform init -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
-  rm -f "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
+  rm -f "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
   echo "==> Bootstrap state successfully migrated to GCS bucket '$STATE_BUCKET'!"
 fi
+
+# Clean up local .terraform cache directory after bootstrap completes
+rm -rf "$BOOTSTRAP_DIR/.terraform" "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
 
 echo "==> Bootstrap completed successfully!"
 
