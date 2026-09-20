@@ -50,12 +50,23 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
    ```bash
    cd bootstrap
    cp terraform.tfvars.example terraform.tfvars   # edit: app name, billing account, project IDs, github repo
-   terraform init && terraform apply
+   terraform init
+
+   # To provision all configured environments (dev & prod):
+   terraform apply
+
+   # To provision ONLY one specific environment (e.g., dev):
+   terraform apply -target='google_project.env["dev"]' \
+                   -target='google_storage_bucket.state["dev"]' \
+                   -target='google_service_account.apply["dev"]' \
+                   -target='google_service_account.plan["dev"]' \
+                   -target='google_iam_workload_identity_pool.github["dev"]' \
+                   -target='google_iam_workload_identity_pool_provider.github["dev"]' \
+                   -target='google_service_account_iam_member.apply_wif["dev"]' \
+                   -target='google_service_account_iam_member.plan_wif["dev"]' \
+                   -target='local_file.backend["dev"]'
    ```
-   This creates both projects, both state buckets, the GitHub OIDC trust, and the CI
-   service accounts, and **rewrites `environments/*/backend.tf`** with the real bucket names.
-   Keep `bootstrap/terraform.tfstate` somewhere safe (it is git-ignored). To use projects
-   that already exist, `terraform import 'google_project.env["dev"]' <project-id>` first.
+   This creates the project, state bucket, GitHub OIDC trust, and CI service accounts for the specified environment(s), and generates `environments/<env>/backend.tf`. To use an existing project, run `terraform import 'google_project.env["dev"]' <project-id>` first.
 
 3. **Tell GitHub about it**
    - Set variables via helper script or `gh` CLI:
