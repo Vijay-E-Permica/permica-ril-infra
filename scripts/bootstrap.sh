@@ -21,7 +21,15 @@ fi
 cd "$BOOTSTRAP_DIR"
 
 echo "==> Initializing local Terraform workspace in $BOOTSTRAP_DIR..."
-terraform init -backend=false -reconfigure -input=false
+# Check if state bucket output or backend configuration exists
+STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
+
+if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
+  echo "==> Initializing backend with bucket '$STATE_BUCKET'..."
+  terraform init -reconfigure -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
+else
+  terraform init -backend=false -reconfigure -input=false
+fi
 
 if [ -n "$TARGET_ENV" ]; then
   echo "==> Running bootstrap terraform apply targeting environment '$TARGET_ENV'..."
