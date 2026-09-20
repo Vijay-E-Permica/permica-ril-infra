@@ -6,11 +6,6 @@
 terraform {
   required_version = ">= 1.16.3"
 
-  backend "gcs" {
-    bucket = "permica-ai-dev-134567-tfstate"
-    prefix = "bootstrap/state"
-  }
-
   required_providers {
     google = {
       source  = "hashicorp/google"
