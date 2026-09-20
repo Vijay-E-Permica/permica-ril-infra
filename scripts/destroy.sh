@@ -60,7 +60,21 @@ echo "==> Removing GitHub Actions variables for environment '$TARGET_ENV'..."
 if [ -d "$BOOTSTRAP_DIR" ]; then
   echo "==> Destroying bootstrap resources targeting environment '$TARGET_ENV'..."
   cd "$BOOTSTRAP_DIR"
-  terraform init -backend=false -reconfigure -input=false || true
+
+  # Fetch state bucket if available
+  STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
+
+  if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
+    cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
+terraform {
+  backend "gcs" {}
+}
+EOF
+    terraform init -reconfigure -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state" || true
+  else
+    rm -f "$BOOTSTRAP_DIR/backend.tf"
+    terraform init -backend=false -reconfigure -input=false || true
+  fi
 
   APIS=(
     "cloudresourcemanager.googleapis.com"
@@ -99,6 +113,9 @@ if [ -d "$BOOTSTRAP_DIR" ]; then
   done
 
   terraform destroy -auto-approve "${TARGET_ARGS[@]}" || true
+
+  # Cleanup temporary files and local backend state
+  rm -rf "$BOOTSTRAP_DIR/.terraform" "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
 fi
 
 echo "==> Environment '$TARGET_ENV' destroyed successfully!"
