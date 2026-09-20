@@ -25,7 +25,12 @@ GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
 ├── environments/         # Environment configurations
 │   ├── dev/              # Dev layer (calls modules/stack with disposable settings)
 │   └── prod/             # Prod layer (calls modules/stack with HA & scaling settings)
-├── scripts/              # Automation helper bash scripts (update/delete GitHub vars, fetch secrets)
+├── scripts/              # Automation helper bash scripts (update/delete GitHub & app vars, fetch secrets)
+│   ├── bootstrap.sh
+│   ├── delete_github_vars.sh
+│   ├── get_secret.sh
+│   ├── update_app_github_vars.sh
+│   └── update_github_vars.sh
 ├── .github/workflows/    # CI/CD pipelines (terraform-dev.yml, terraform-prod.yml)
 └── docs/                 # Guides & example workflows (app deployment, component upgrades)
 ```
@@ -154,6 +159,13 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
 - Terraform never redeploys your application. CI owns the running image (Terraform ignores
   image changes on Cloud Run). Use `docs/deploy-app.example.yml` in your app repo.
   `terraform output app_deploy_github_variables` (in each environment folder) prints the values it needs.
+- **Sync Application Repo Variables**:
+  Set/update application repository GitHub Action variables (e.g., for `permica-core`) using:
+  ```bash
+  ./scripts/update_app_github_vars.sh <target-repo> [dev|prod]
+  # Example:
+  ./scripts/update_app_github_vars.sh Vijay-E-Permica/permica-core dev
+  ```
 
 ## Secrets
 

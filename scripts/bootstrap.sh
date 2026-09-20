@@ -52,7 +52,6 @@ if [ -n "$TARGET_ENV" ]; then
     "-target=google_iam_workload_identity_pool_provider.github[\"${TARGET_ENV}\"]"
     "-target=google_service_account_iam_member.apply_wif[\"${TARGET_ENV}\"]"
     "-target=google_service_account_iam_member.plan_wif[\"${TARGET_ENV}\"]"
-    "-target=local_file.backend[\"${TARGET_ENV}\"]"
   )
 
   for api in "${APIS[@]}"; do
