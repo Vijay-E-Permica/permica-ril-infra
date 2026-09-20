@@ -217,13 +217,39 @@ Edit `.github/workflows/terraform-staging.yml`:
 Sync all new Terraform outputs directly to GitHub Actions repo variables:
 ```bash
 ./scripts/update_github_vars.sh
+
+
+## Destroying an environment
+
+> [!WARNING]
+> Destroying an environment permanently removes all infrastructure resources (Cloud SQL databases, Cloud Storage buckets, Cloud Run services). Ensure you back up critical data prior to destruction.
+
+To dismantle and delete a specific environment (e.g., `dev` or a custom environment like `staging`):
+
+### Step 1: Destroy Environment Infrastructure
+Navigate to the environment directory and run `terraform destroy`:
+```bash
+cd environments/dev
+terraform init
+terraform destroy
 ```
 
-
+### Step 2: (Optional) Remove Environment from Bootstrap & GCP Project
+If you wish to completely remove the project, state bucket, and CI service accounts for that environment:
+1. Remove the environment entry from `locals.envs` in [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf).
+2. Apply the change in `bootstrap/`:
+   ```bash
+   cd bootstrap
+   terraform apply
+   ```
+   *(Note: `deletion_protection` is enabled for production projects by default; set `deletion_policy = "DELETE"` or remove project protection if destroying prod).*
+3. Remove the corresponding workflow file `.github/workflows/terraform-<env>.yml`.
+4. Run `./scripts/update_github_vars.sh` to update GitHub repository variables.
 
 ## Status
 
 The HCL and workflow YAML in this package were syntax-checked and cross-checked (every variable
 declared/used, every module call matches its module), but it has **not** been applied against a live GCP
 account. Expect to fix small provider or permission details on the first `terraform plan`.
+
 
