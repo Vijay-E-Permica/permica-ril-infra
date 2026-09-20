@@ -131,10 +131,17 @@ Terraform automatically injects the following environment variables into your Cl
 
 ## Cost notes
 
-- **Bigtable** bills for at least one node around the clock (hundreds of dollars a month with SSD).
-  It is off in dev by default (`enable_bigtable = false`).
-- Prod Cloud SQL is regional (HA) `db-custom-2-7680` with `min_instances = 1` on Cloud Run. Adjust in
-  `environments/prod/main.tf` once you know real traffic.
+Key infrastructure settings configured to prevent unexpected GCP billing charges:
+
+| Component | Dev Configuration | Prod Configuration | Cost Impact / Notes |
+|---|---|---|---|
+| **Bigtable** | Disabled (`enable_bigtable = false`) | Optional (`enable_bigtable = true`) | Bigtable bills ~24/7 per provisioned node (~$300+/mo per SSD node). Kept OFF in `dev` by default. |
+| **Cloud SQL** | Single-zone (`db-f1-micro`) | Regional High-Availability (`db-custom-2-7680`) | Prod runs HA failover instance for reliability; dev runs low-cost micro tier. |
+| **Cloud Run** | Scales to `0` (`min_instances = 0`) | Keeps warm (`min_instances = 1`) | Dev incurs zero compute costs when idle; prod stays warm to avoid cold starts. |
+
+> **Cost Optimization Tip**: Adjust instance sizes and scaling parameters in `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars` based on actual traffic requirements.
+
+
 
 ## Design decisions worth knowing
 
