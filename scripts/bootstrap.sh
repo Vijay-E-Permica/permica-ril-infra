@@ -20,11 +20,8 @@ fi
 
 cd "$BOOTSTRAP_DIR"
 
-# Clean any previous temp backend config prior to fresh init
-rm -f "$BOOTSTRAP_DIR/backend.tf"
-
-echo "==> Initializing Terraform in $BOOTSTRAP_DIR..."
-terraform init -input=false
+echo "==> Initializing local Terraform workspace in $BOOTSTRAP_DIR..."
+terraform init -backend=false -input=false
 
 if [ -n "$TARGET_ENV" ]; then
   echo "==> Running bootstrap terraform apply targeting environment '$TARGET_ENV'..."
@@ -75,20 +72,12 @@ fi
 STATE_BUCKET=$(terraform output -json state_buckets | jq -r 'to_entries[0].value // empty')
 
 if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
-  echo "==> Migrating bootstrap local state to GCS bucket '$STATE_BUCKET'..."
-  cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
-# Auto-generated backend configuration by bootstrap.sh
-terraform {
-  backend "gcs" {
-    bucket = "$STATE_BUCKET"
-    prefix = "bootstrap/state"
-  }
-}
-EOF
-  terraform init -force-copy -input=false
+  echo "==> Migrating bootstrap state to GCS bucket '$STATE_BUCKET'..."
+  terraform init -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
   rm -f "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
   echo "==> Bootstrap state successfully migrated to GCS bucket '$STATE_BUCKET'!"
 fi
 
 echo "==> Bootstrap completed successfully!"
+
 

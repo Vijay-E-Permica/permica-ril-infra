@@ -60,7 +60,6 @@ echo "==> Removing GitHub Actions variables for environment '$TARGET_ENV'..."
 if [ -d "$BOOTSTRAP_DIR" ]; then
   echo "==> Destroying bootstrap resources targeting environment '$TARGET_ENV'..."
   cd "$BOOTSTRAP_DIR"
-  rm -f "$BOOTSTRAP_DIR/backend.tf"
   terraform init -input=false || true
 
   APIS=(
