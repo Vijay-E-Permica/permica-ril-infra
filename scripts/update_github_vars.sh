@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure script is run from repo root or bootstrap directory
+# Helper script to set GitHub Actions repository variables.
+# Usage: ./scripts/update_github_vars.sh [env]
+# Example: ./scripts/update_github_vars.sh staging   # updates only GCP_*_STAGING variables
+#          ./scripts/update_github_vars.sh           # updates all variables from bootstrap outputs
+
+TARGET_ENV="${1:-}"
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BOOTSTRAP_DIR="$REPO_ROOT/bootstrap"
 
@@ -18,10 +24,20 @@ if ! terraform output -json github_variables > /dev/null 2>&1; then
   exit 1
 fi
 
-echo "==> Setting GitHub repository variables via gh CLI..."
-terraform output -json github_variables | jq -r 'to_entries[] | "\(.key)=\(.value)"' | while IFS='=' read -r key val; do
-  echo "Setting variable: $key"
-  gh variable set "$key" --body "$val"
-done
+if [ -n "$TARGET_ENV" ]; then
+  ENV_UPPER="$(echo "$TARGET_ENV" | tr '[:lower:]' '[:upper:]')"
+  echo "==> Setting GitHub repository variables for environment '$TARGET_ENV' (${ENV_UPPER})..."
+  terraform output -json github_variables | jq -r --arg env "_${ENV_UPPER}" 'to_entries[] | select(.key | endswith($env)) | "\(.key)=\(.value)"' | while IFS='=' read -r key val; do
+    echo "Setting variable: $key"
+    gh variable set "$key" --body "$val"
+  done
+else
+  echo "==> Setting ALL GitHub repository variables via gh CLI..."
+  terraform output -json github_variables | jq -r 'to_entries[] | "\(.key)=\(.value)"' | while IFS='=' read -r key val; do
+    echo "Setting variable: $key"
+    gh variable set "$key" --body "$val"
+  done
+fi
 
 echo "==> Successfully updated GitHub repository variables!"
+

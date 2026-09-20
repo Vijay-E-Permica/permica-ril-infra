@@ -214,9 +214,10 @@ Edit `.github/workflows/terraform-staging.yml`:
 - Update environment variables to reference `STAGING` service accounts (`GCP_STAGING_WIF_PROVIDER`, `GCP_STAGING_APPLY_SA`).
 
 #### Step 5: Sync GitHub Variables
-Sync all new Terraform outputs directly to GitHub Actions repo variables:
+Sync the environment's Terraform outputs to GitHub Actions repo variables:
 ```bash
-./scripts/update_github_vars.sh
+./scripts/update_github_vars.sh staging   # Replace 'staging' with target env
+```
 
 
 ## Destroying an environment
