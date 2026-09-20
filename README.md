@@ -8,14 +8,77 @@ Cloud Run · Cloud SQL (PostgreSQL 17) · Cloud Storage · Bigtable (optional) �
 Secret Manager · Cloud Scheduler · Artifact Registry · service accounts ·
 GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
 
+```text
+.
+├── bootstrap/            # Run ONCE by human: GCP projects, state buckets, GitHub OIDC & CI SAs
+├── modules/              # Reusable Terraform modules
+│   ├── apis/             # GCP API enablement
+│   ├── artifact-registry/# Docker image registry
+│   ├── bigtable/         # Cloud Bigtable instances & tables
+│   ├── cloud-run/        # Cloud Run microservice deployment
+│   ├── cloud-sql/        # Cloud SQL (PostgreSQL 17) database
+│   ├── cloud-storage/    # Cloud Storage buckets
+│   ├── iam/              # IAM service accounts & role bindings
+│   ├── scheduler/        # Cloud Scheduler cron jobs
+│   ├── secret-manager/   # Secret Manager secrets
+│   └── stack/            # Composes all modules into a full environment stack
+├── environments/         # Environment configurations
+│   ├── dev/              # Dev layer (calls modules/stack with disposable settings)
+│   └── prod/             # Prod layer (calls modules/stack with HA & scaling settings)
+├── scripts/              # Automation helper bash scripts (update/delete GitHub vars, fetch secrets)
+├── .github/workflows/    # CI/CD pipelines (terraform-dev.yml, terraform-prod.yml)
+└── docs/                 # Guides & example workflows (app deployment, component upgrades)
 ```
-bootstrap/            run ONCE by a human: projects, state buckets, GitHub OIDC, CI service accounts
-modules/              reusable building blocks (apis, iam, cloud-run, cloud-sql, ...)
-  stack/              composes all modules into one full environment
-environments/dev      calls modules/stack with small, disposable settings
-environments/prod     calls modules/stack with protected, production-sized settings
-.github/workflows/    terraform-dev.yml, terraform-prod.yml
-docs/                 deploy-app.example.yml (build + deploy the Python app)
+
+## Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph GitHub["GitHub Actions CI/CD"]
+        PR["Pull Request (develop / main)"] -->|OIDC Auth / WIF| Plan["terraform plan (read-only)"]
+        Merge["Merge (develop / main)"] -->|OIDC Auth / WIF| Apply["terraform apply"]
+    end
+
+    subgraph GCP["Google Cloud Platform (GCP)"]
+        subgraph Bootstrap["Bootstrap Infrastructure"]
+            Pool["Workload Identity Pool (github)"]
+            PoolProvider["Workload Identity Provider"]
+            StateBucketDev[("GCS State Bucket (dev)")]
+            StateBucketProd[("GCS State Bucket (prod)")]
+        end
+
+        subgraph DevProject["Dev Project (permica-ai-dev)"]
+            subgraph ServicesDev["Application Stack (dev)"]
+                CR_Dev["Cloud Run (Python API)"]
+                DB_Dev[("Cloud SQL (Postgres 17)")]
+                GCS_Dev[("Cloud Storage Bucket")]
+                SM_Dev["Secret Manager (db-password, jwt-secret)"]
+                AR_Dev["Artifact Registry"]
+                BT_Dev[("Bigtable (optional)")]
+            end
+        end
+
+        subgraph ProdProject["Prod Project (permica-ai-prod)"]
+            subgraph ServicesProd["Application Stack (prod)"]
+                CR_Prod["Cloud Run (Python API)"]
+                DB_Prod[("Cloud SQL HA (Postgres 17)")]
+                GCS_Prod[("Cloud Storage Bucket")]
+                SM_Prod["Secret Manager (db-password, jwt-secret)"]
+                AR_Prod["Artifact Registry"]
+                BT_Prod[("Bigtable (optional)")]
+            end
+        end
+    end
+
+    Apply -->|Deploy Dev| DevProject
+    Apply -->|Deploy Prod| ProdProject
+    CR_Dev -->|Unix Socket / Cloud SQL Connector| DB_Dev
+    CR_Dev -->|Mount Secrets| SM_Dev
+    CR_Dev -->|Read/Write| GCS_Dev
+
+    CR_Prod -->|Unix Socket / Cloud SQL Connector| DB_Prod
+    CR_Prod -->|Mount Secrets| SM_Prod
+    CR_Prod -->|Read/Write| GCS_Prod
 ```
 
 ## How several people share it safely
@@ -50,12 +113,23 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
    ```bash
    cd bootstrap
    cp terraform.tfvars.example terraform.tfvars   # edit: app name, billing account, project IDs, github repo
-   terraform init && terraform apply
+   terraform init
+
+   # To provision all configured environments (dev & prod):
+   terraform apply
+
+   # To provision ONLY one specific environment (e.g., dev):
+   terraform apply -target='google_project.env["dev"]' \
+                   -target='google_storage_bucket.state["dev"]' \
+                   -target='google_service_account.apply["dev"]' \
+                   -target='google_service_account.plan["dev"]' \
+                   -target='google_iam_workload_identity_pool.github["dev"]' \
+                   -target='google_iam_workload_identity_pool_provider.github["dev"]' \
+                   -target='google_service_account_iam_member.apply_wif["dev"]' \
+                   -target='google_service_account_iam_member.plan_wif["dev"]' \
+                   -target='local_file.backend["dev"]'
    ```
-   This creates both projects, both state buckets, the GitHub OIDC trust, and the CI
-   service accounts, and **rewrites `environments/*/backend.tf`** with the real bucket names.
-   Keep `bootstrap/terraform.tfstate` somewhere safe (it is git-ignored). To use projects
-   that already exist, `terraform import 'google_project.env["dev"]' <project-id>` first.
+   This creates the project, state bucket, GitHub OIDC trust, and CI service accounts for the specified environment(s), and generates `environments/<env>/backend.tf`. To use an existing project, run `terraform import 'google_project.env["dev"]' <project-id>` first.
 
 3. **Tell GitHub about it**
    - Set variables via helper script or `gh` CLI:
@@ -139,7 +213,7 @@ Key infrastructure settings configured to prevent unexpected GCP billing charges
 | **Cloud SQL** | Single-zone (`db-f1-micro`) | Regional High-Availability (`db-custom-2-7680`) | Prod runs HA failover instance for reliability; dev runs low-cost micro tier. |
 | **Cloud Run** | Scales to `0` (`min_instances = 0`) | Keeps warm (`min_instances = 1`) | Dev incurs zero compute costs when idle; prod stays warm to avoid cold starts. |
 
-> **Cost Optimization Tip**: Adjust instance sizes and scaling parameters in `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars` based on actual traffic requirements.
+> **Cost Optimization & Sizing Tip**: Adjust instance sizes and scaling parameters in `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars` based on actual traffic requirements. For step-by-step instructions on scaling Cloud SQL tiers, disk space, or compute resources without data loss, see the [Upgrading Components Guide](docs/upgrading-components.md).
 
 
 
