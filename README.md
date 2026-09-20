@@ -302,12 +302,20 @@ Sync the environment's Terraform outputs to GitHub Actions repo variables:
 To dismantle and delete a specific environment (e.g., `dev` or a custom environment like `staging`):
 
 ### Step 1: Destroy Environment Infrastructure
+
+#### Option A: Via GitHub Actions (Manual Workflow Dispatch)
+1. Go to **GitHub Repo -> Actions -> Terraform Destroy (dev)**.
+2. Click **Run workflow**.
+3. Type **`DESTROY`** in the confirmation prompt input and click **Run workflow**.
+
+#### Option B: Via Local Terminal
 Navigate to the environment directory and run `terraform destroy`:
 ```bash
 cd environments/dev
 terraform init
-terraform destroy
+terraform destroy -var-file=terraform.tfvars
 ```
+
 
 ### Step 2: (Optional) Remove Environment from Bootstrap & GCP Project
 If you wish to completely remove the project, state bucket, and CI service accounts for that environment:
