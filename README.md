@@ -159,14 +159,6 @@ Key architectural & security choices governing this codebase:
 - Custom domain DNS mapping and SSL certificates.
 - Advanced VPC peering, dedicated interconnects, and complex monitoring/alerting suites.
 
-
-
-## Rename / customize
-
-Replace `myapp` and `myorg/myapp-infra` in `bootstrap/terraform.tfvars` and both
-`environments/*/terraform.tfvars`. Service account IDs are `<app>-<env>-runtime|deployer`
-and must stay ≤ 30 characters, so keep `app_name` short.
-
 ## Adding a new environment (e.g. staging)
 
 To create an additional environment (e.g. `staging`):
