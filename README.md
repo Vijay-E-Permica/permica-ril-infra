@@ -8,14 +8,26 @@ Cloud Run · Cloud SQL (PostgreSQL 17) · Cloud Storage · Bigtable (optional) �
 Secret Manager · Cloud Scheduler · Artifact Registry · service accounts ·
 GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
 
-```
-bootstrap/            run ONCE by a human: projects, state buckets, GitHub OIDC, CI service accounts
-modules/              reusable building blocks (apis, iam, cloud-run, cloud-sql, ...)
-  stack/              composes all modules into one full environment
-environments/dev      calls modules/stack with small, disposable settings
-environments/prod     calls modules/stack with protected, production-sized settings
-.github/workflows/    terraform-dev.yml, terraform-prod.yml
-docs/                 deploy-app.example.yml (build + deploy the Python app)
+```text
+.
+├── bootstrap/            # Run ONCE by human: GCP projects, state buckets, GitHub OIDC & CI SAs
+├── modules/              # Reusable Terraform modules
+│   ├── apis/             # GCP API enablement
+│   ├── artifact-registry/# Docker image registry
+│   ├── bigtable/         # Cloud Bigtable instances & tables
+│   ├── cloud-run/        # Cloud Run microservice deployment
+│   ├── cloud-sql/        # Cloud SQL (PostgreSQL 17) database
+│   ├── cloud-storage/    # Cloud Storage buckets
+│   ├── iam/              # IAM service accounts & role bindings
+│   ├── scheduler/        # Cloud Scheduler cron jobs
+│   ├── secret-manager/   # Secret Manager secrets
+│   └── stack/            # Composes all modules into a full environment stack
+├── environments/         # Environment configurations
+│   ├── dev/              # Dev layer (calls modules/stack with disposable settings)
+│   └── prod/             # Prod layer (calls modules/stack with HA & scaling settings)
+├── scripts/              # Automation helper bash scripts (update/delete GitHub vars, fetch secrets)
+├── .github/workflows/    # CI/CD pipelines (terraform-dev.yml, terraform-prod.yml)
+└── docs/                 # Example workflows (e.g. app deployment guide)
 ```
 
 ## How several people share it safely
