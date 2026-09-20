@@ -51,7 +51,7 @@ jobs:
 
       - name: Plan
         run: |
-          terraform plan -no-color -input=false -lock-timeout=5m | tee plan.txt
+          terraform plan -no-color -input=false -var-file=terraform.tfvars -lock-timeout=5m | tee plan.txt
           {
             echo '### Terraform plan (prod)'
             echo '```'
@@ -76,4 +76,5 @@ jobs:
 
       - run: terraform init -input=false
 
-      - run: terraform apply -auto-approve -input=false -lock-timeout=10m
+      - run: terraform apply -auto-approve -input=false -var-file=terraform.tfvars -lock-timeout=10m
+
