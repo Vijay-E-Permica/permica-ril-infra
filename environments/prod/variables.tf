@@ -56,3 +56,10 @@ variable "extra_secret_env" {
   type        = map(string)
   default     = {}
 }
+
+variable "allow_public_access" {
+  description = "Allow unauthenticated HTTP calls to Cloud Run (set false if forbidden by org policy)."
+  type        = bool
+  default     = false
+}
+
