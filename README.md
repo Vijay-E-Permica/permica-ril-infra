@@ -145,19 +145,21 @@ Key infrastructure settings configured to prevent unexpected GCP billing charges
 
 ## Design decisions worth knowing
 
-- The `tf-apply` account has **Owner** on its own project (Terraform must create IAM bindings). That is
-  contained by the WIF condition: only this repo + `develop` (dev) / `main` (prod) can impersonate it.
-  Tighten with a custom role later if your security requirements demand it.
-- PR plans use a separate read-only `tf-plan` account. It can read state, so it is not offered to fork PRs.
-  If a plan fails with "permission denied" on some new resource type, add the matching viewer role to
-  `plan_roles` in `bootstrap/main.tf`.
-- Cloud Run allows unauthenticated calls by default (`allow_public_access = true`) because a React
-  frontend must call it from browsers. Your app must authenticate requests itself (e.g. JWT).
-  If your organization forbids `allUsers`, add `allow_public_access = false` to the `module "stack"` block in `environments/<env>/main.tf`.
-- Cloud SQL uses a public IP with **no** authorized networks and `ENCRYPTED_ONLY`; Cloud Run reaches it
-  through the built-in Cloud SQL connector. Switch to private IP + VPC if you need network isolation.
-- Not included: the React frontend hosting (static bucket + load balancer/CDN, or Firebase Hosting),
-  custom domains, monitoring/alerting, and VPC networking.
+Key architectural & security choices governing this codebase:
+
+| Decision Area | Implementation Choice | Rationale & Trade-offs | Customization / Override |
+|---|---|---|---|
+| **IAM Apply Permissions** | `tf-apply` service account has `roles/owner` | Terraform creates project-level IAM bindings. Protected via GitHub Workload Identity Federation (WIF) branch restriction (`develop` for dev, `main` for prod). | Tighten to custom IAM roles if strict least-privilege is required. |
+| **PR Security & Planning** | Read-only `tf-plan` service account | Runs `terraform plan` on PRs securely. Blocked for fork PRs to prevent state reading. | Add viewer roles to `plan_roles` in [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf) if new GCP resource reads fail. |
+| **Cloud Run Ingress** | Public access enabled (`allow_public_access = true`) | Allows web applications / frontend clients to invoke APIs directly. Application layer manages JWT auth. | Set `allow_public_access = false` in `environments/<env>/main.tf` if org policy forbids `allUsers`. |
+| **Cloud SQL Connectivity** | Public IP + `ENCRYPTED_ONLY` (No authorized networks) | Cloud Run connects securely using the built-in Cloud SQL proxy/connector without requiring a VPC. | Migrate to Private IP + VPC Connector if internal network isolation is required. |
+
+### Out of Scope / Excluded Components
+- Frontend static web hosting (CDN, Firebase Hosting, Cloud Storage + Load Balancer).
+- Custom domain DNS mapping and SSL certificates.
+- Advanced VPC peering, dedicated interconnects, and complex monitoring/alerting suites.
+
+
 
 ## Rename / customize
 
