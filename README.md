@@ -99,6 +99,15 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
   ```
   Then expose it to the service by adding `extra_secret_env = { JWT_SECRET = "jwt-secret" }`
   to that environment's `terraform.tfvars`. (Add it only after a version exists, otherwise the Cloud Run revision fails.)
+- **Fetch secret value**:
+  Use the provided script to retrieve secret values from GCP Secret Manager:
+  ```bash
+  ./scripts/get_secret.sh <secret-name> <project-id> [version]
+  # Example:
+  ./scripts/get_secret.sh jwt-secret permica-ai-dev-134567 latest
+  ```
+
+
 
 ## Environment variables your app receives
 
