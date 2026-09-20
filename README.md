@@ -1,0 +1,142 @@
+# myapp-infra
+
+Terraform for a Python API on Google Cloud, with separate **dev** and **prod**
+environments that a team can share safely.
+
+Per environment (each in its own GCP project, with its own state bucket):
+Cloud Run · Cloud SQL (PostgreSQL 17) · Cloud Storage · Bigtable (optional) ·
+Secret Manager · Cloud Scheduler · Artifact Registry · service accounts ·
+GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
+
+```
+bootstrap/            run ONCE by a human: projects, state buckets, GitHub OIDC, CI service accounts
+modules/              reusable building blocks (apis, iam, cloud-run, cloud-sql, ...)
+  stack/              composes all modules into one full environment
+environments/dev      calls modules/stack with small, disposable settings
+environments/prod     calls modules/stack with protected, production-sized settings
+.github/workflows/    terraform-dev.yml, terraform-prod.yml
+docs/                 deploy-app.example.yml (build + deploy the Python app)
+```
+
+## How several people share it safely
+
+| Concern | How it is handled |
+|---|---|
+| One account, two environments | Two GCP projects (`*-dev`, `*-prod`) under the same billing account. Separate state, IAM and blast radius. |
+| Two people running Terraform at once | Remote state in GCS with locking; CI serialises runs per environment. |
+| Who can change infrastructure | Only CI. Humans open PRs. Dev applies on merge to `develop`; prod applies on merge to `main` **after a reviewer approves** the `production` GitHub Environment. |
+| Who can touch prod from GitHub | The prod apply identity only accepts tokens from *this repo* on branch *main*. Forks get nothing. |
+| Onboarding a teammate | Add them to a Google Group listed in `terraform.tfvars` (`developer_members` / `admin_members`). Devs get deploy + logs in dev, **read-only in prod**. |
+| Credentials | No service-account keys anywhere. GitHub OIDC only. |
+| Secrets | Terraform creates the secret containers and the generated DB password. Other values are added out-of-band, never committed. |
+
+## One-time setup
+
+You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo for this code
+(branches `main` and `develop`).
+
+1. **Authenticate**
+   ```bash
+   gcloud auth login
+   gcloud auth application-default login
+   ```
+   Your user needs *Billing Account User* on the billing account (and *Project Creator*
+   on the org/folder if you use one). If Terraform complains that an API "has not been
+   used in project …", enable `cloudresourcemanager`, `serviceusage` and `cloudbilling`
+   on your quota project, or run
+   `gcloud auth application-default set-quota-project <an-existing-project>`.
+
+2. **Bootstrap**
+   ```bash
+   cd bootstrap
+   cp terraform.tfvars.example terraform.tfvars   # edit: app name, billing account, project IDs, github repo
+   terraform init && terraform apply
+   ```
+   This creates both projects, both state buckets, the GitHub OIDC trust, and the CI
+   service accounts, and **rewrites `environments/*/backend.tf`** with the real bucket names.
+   Keep `bootstrap/terraform.tfstate` somewhere safe (it is git-ignored). To use projects
+   that already exist, `terraform import 'google_project.env["dev"]' <project-id>` first.
+
+3. **Tell GitHub about it**
+   - Set variables via helper script or `gh` CLI:
+     ```bash
+     ./scripts/update_github_vars.sh
+     # to undo / remove set variables:
+     ./scripts/delete_github_vars.sh
+     ```
+     *(Or manually in Repo → Settings → Secrets and variables → Actions → **Variables**).*
+   - Settings → Environments → create **`production`** and add required reviewers.
+   - Settings → Branches → protect `main` and `develop` (require PR + review; add a CODEOWNERS
+     file for `environments/prod/` and `modules/`).
+
+4. **Fill in the environments**
+   Edit `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars`
+   (project IDs must match step 2; put your team's Google Groups in the member lists).
+   Commit everything, including the generated `backend.tf` files.
+
+5. **First deploy — through CI**
+   Push/merge to `develop` (creates dev), then open a PR `develop → main` and merge it
+   (creates prod after approval). Some IAM bindings take a minute to propagate; if the first
+   apply fails with a permission error, re-run the workflow.
+
+## Day to day
+
+- Change infra → branch → PR to `develop` → the PR shows a `terraform plan` in the run
+  summary → merge → dev updates. When happy, PR `develop → main` → review the prod plan →
+  merge → approve → prod updates.
+- Format before committing: `terraform fmt -recursive`.
+- Terraform never redeploys your application. CI owns the running image (Terraform ignores
+  image changes on Cloud Run). Use `docs/deploy-app.example.yml` in your app repo.
+  `terraform output app_deploy_github_variables` (in each environment folder) prints the values it needs.
+
+## Secrets
+
+- `db-password`: generated by Terraform and mounted into Cloud Run as `DB_PASSWORD`. It also exists in the
+  Terraform state, so keep the state buckets locked down (only the CI service accounts have access).
+- Your own secrets (default list: `jwt-secret`, change via `app_secrets`) are created **empty**. Add a value:
+  ```bash
+  printf '%s' "$VALUE" | gcloud secrets versions add jwt-secret --data-file=- --project <project-id>
+  ```
+  Then expose it to the service by adding `extra_secret_env = { JWT_SECRET = "jwt-secret" }`
+  to that environment's `terraform.tfvars`. (Add it only after a version exists, otherwise the Cloud Run revision fails.)
+
+## Environment variables your app receives
+
+`ENVIRONMENT`, `GCP_PROJECT`, `DB_INSTANCE_CONNECTION_NAME`, `DB_SOCKET_DIR` (`/cloudsql`), `DB_NAME`,
+`DB_USER`, `DB_PASSWORD` (secret), `STORAGE_BUCKET`, and `BIGTABLE_INSTANCE_ID` when Bigtable is enabled.
+Connect to Postgres over the unix socket `/cloudsql/<DB_INSTANCE_CONNECTION_NAME>`.
+
+## Cost notes
+
+- **Bigtable** bills for at least one node around the clock (hundreds of dollars a month with SSD).
+  It is off in dev by default (`enable_bigtable = false`).
+- Prod Cloud SQL is regional (HA) `db-custom-2-7680` with `min_instances = 1` on Cloud Run. Adjust in
+  `environments/prod/main.tf` once you know real traffic.
+
+## Design decisions worth knowing
+
+- The `tf-apply` account has **Owner** on its own project (Terraform must create IAM bindings). That is
+  contained by the WIF condition: only this repo + `develop` (dev) / `main` (prod) can impersonate it.
+  Tighten with a custom role later if your security requirements demand it.
+- PR plans use a separate read-only `tf-plan` account. It can read state, so it is not offered to fork PRs.
+  If a plan fails with "permission denied" on some new resource type, add the matching viewer role to
+  `plan_roles` in `bootstrap/main.tf`.
+- Cloud Run allows unauthenticated calls by default (`allow_public_access = true`) because a React
+  frontend must call it from browsers. Your app must authenticate requests itself (e.g. JWT).
+  If your organization forbids `allUsers`, add `allow_public_access = false` to the `module "stack"` block in `environments/<env>/main.tf`.
+- Cloud SQL uses a public IP with **no** authorized networks and `ENCRYPTED_ONLY`; Cloud Run reaches it
+  through the built-in Cloud SQL connector. Switch to private IP + VPC if you need network isolation.
+- Not included: the React frontend hosting (static bucket + load balancer/CDN, or Firebase Hosting),
+  custom domains, monitoring/alerting, and VPC networking.
+
+## Rename / customize
+
+Replace `myapp` and `myorg/myapp-infra` in `bootstrap/terraform.tfvars` and both
+`environments/*/terraform.tfvars`. Service account IDs are `<app>-<env>-runtime|deployer`
+and must stay ≤ 30 characters, so keep `app_name` short.
+
+## Status
+
+The HCL and workflow YAML in this package were syntax-checked and cross-checked (every variable
+declared/used, every module call matches its module), but it has **not** been applied against a live GCP
+account. Expect to fix small provider or permission details on the first `terraform plan`.

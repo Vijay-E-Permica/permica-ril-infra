@@ -1,0 +1,61 @@
+# Example application deploy workflow (Docker build -> Artifact Registry -> Cloud Run).
+# Copy to .github/workflows/deploy-app.yml in the repo that holds your Python backend
+# and adjust the build context / Dockerfile path.
+#
+# Repository variables needed (values come from `terraform output app_deploy_github_variables`
+# in environments/dev and environments/prod):
+#   GCP_REGION
+#   GCP_PROJECT_ID_DEV    GCP_PROJECT_ID_PROD
+#   GCP_WIF_PROVIDER_DEV  GCP_WIF_PROVIDER_PROD     (…/providers/github)
+#   GCP_DEPLOYER_SA_DEV   GCP_DEPLOYER_SA_PROD
+#   ARTIFACT_REGISTRY_DEV ARTIFACT_REGISTRY_PROD
+#   CLOUD_RUN_SERVICE_DEV CLOUD_RUN_SERVICE_PROD
+#
+# The deployer accounts only accept tokens from this repository's
+# `develop` branch (dev) and `main` branch (prod).
+name: Deploy app
+
+on:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Optional: uncomment to require approval before prod deploys.
+    # environment: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
+    env:
+      PROJECT: ${{ github.ref_name == 'main' && vars.GCP_PROJECT_ID_PROD || vars.GCP_PROJECT_ID_DEV }}
+      REGION: ${{ vars.GCP_REGION }}
+      REGISTRY: ${{ github.ref_name == 'main' && vars.ARTIFACT_REGISTRY_PROD || vars.ARTIFACT_REGISTRY_DEV }}
+      SERVICE: ${{ github.ref_name == 'main' && vars.CLOUD_RUN_SERVICE_PROD || vars.CLOUD_RUN_SERVICE_DEV }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ github.ref_name == 'main' && vars.GCP_WIF_PROVIDER_PROD || vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ github.ref_name == 'main' && vars.GCP_DEPLOYER_SA_PROD || vars.GCP_DEPLOYER_SA_DEV }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push image
+        run: |
+          IMAGE="${REGISTRY}/backend:${GITHUB_SHA}"
+          docker build -t "$IMAGE" .          # <- your Dockerfile / context
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --project "$PROJECT" \
+            --region "$REGION" \
+            --image "$IMAGE"

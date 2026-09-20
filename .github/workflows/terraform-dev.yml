@@ -1,0 +1,78 @@
+name: Terraform (dev)
+
+# PR into develop  -> read-only plan (shown in the run summary)
+# push to develop  -> apply to the dev project
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - "environments/dev/**"
+      - "modules/**"
+      - ".github/workflows/terraform-dev.yml"
+  push:
+    branches: [develop]
+    paths:
+      - "environments/dev/**"
+      - "modules/**"
+      - ".github/workflows/terraform-dev.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+# Never run two Terraform jobs against the same environment at once.
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+    working-directory: environments/dev
+
+jobs:
+  plan:
+    # Skip PRs from forks: they must not get cloud credentials.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_TF_PLAN_SA_DEV }}
+
+      - run: terraform init -input=false
+
+      - run: terraform validate
+
+      - name: Plan
+        run: |
+          terraform plan -no-color -input=false -lock-timeout=5m | tee plan.txt
+          {
+            echo '### Terraform plan (dev)'
+            echo '```'
+            tail -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
+          service_account: ${{ vars.GCP_TF_APPLY_SA_DEV }}
+
+      - run: terraform init -input=false
+
+      - run: terraform apply -auto-approve -input=false -lock-timeout=10m

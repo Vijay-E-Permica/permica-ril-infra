@@ -1,0 +1,79 @@
+name: Terraform (prod)
+
+# PR into main  -> read-only plan (shown in the run summary)
+# push to main  -> apply to prod, but only after a reviewer approves the
+#                  "production" GitHub Environment.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "environments/prod/**"
+      - "modules/**"
+      - ".github/workflows/terraform-prod.yml"
+  push:
+    branches: [main]
+    paths:
+      - "environments/prod/**"
+      - "modules/**"
+      - ".github/workflows/terraform-prod.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-prod
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+    working-directory: environments/prod
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_PROD }}
+          service_account: ${{ vars.GCP_TF_PLAN_SA_PROD }}
+
+      - run: terraform init -input=false
+
+      - run: terraform validate
+
+      - name: Plan
+        run: |
+          terraform plan -no-color -input=false -lock-timeout=5m | tee plan.txt
+          {
+            echo '### Terraform plan (prod)'
+            echo '```'
+            tail -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Configure required reviewers on this environment in GitHub settings.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_PROD }}
+          service_account: ${{ vars.GCP_TF_APPLY_SA_PROD }}
+
+      - run: terraform init -input=false
+
+      - run: terraform apply -auto-approve -input=false -lock-timeout=10m
