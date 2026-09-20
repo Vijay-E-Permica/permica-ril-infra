@@ -236,7 +236,10 @@ terraform destroy
 
 ### Step 2: (Optional) Remove Environment from Bootstrap & GCP Project
 If you wish to completely remove the project, state bucket, and CI service accounts for that environment:
-1. Delete the GitHub repository variables associated with the environment (or run `./scripts/delete_github_vars.sh` prior to removing from bootstrap).
+1. Delete the GitHub repository variables associated with the environment:
+   ```bash
+   ./scripts/delete_github_vars.sh dev   # Replace 'dev' with target env (e.g. staging)
+   ```
 2. Remove the environment entry from `locals.envs` in [bootstrap/main.tf](bootstrap/main.tf).
 3. Apply the change in `bootstrap/`:
    ```bash
@@ -245,7 +248,6 @@ If you wish to completely remove the project, state bucket, and CI service accou
    ```
    *(Note: `deletion_protection` is enabled for production projects by default; set `deletion_policy = "DELETE"` or remove project protection if destroying prod).*
 4. Remove the corresponding workflow file `.github/workflows/terraform-<env>.yml`.
-5. Run `./scripts/update_github_vars.sh` to refresh remaining GitHub repository variables.
 
 ## Status
 
