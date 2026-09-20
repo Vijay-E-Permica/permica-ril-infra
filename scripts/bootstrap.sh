@@ -21,6 +21,7 @@ fi
 cd "$BOOTSTRAP_DIR"
 
 echo "==> Initializing local Terraform workspace in $BOOTSTRAP_DIR..."
+rm -rf "$BOOTSTRAP_DIR/.terraform"
 # Check if state bucket output or backend configuration exists
 STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
 
