@@ -252,8 +252,10 @@ If you wish to completely remove the project, state bucket, and CI service accou
 
 ## Status
 
-The HCL and workflow YAML in this package were syntax-checked and cross-checked (every variable
-declared/used, every module call matches its module), but it has **not** been applied against a live GCP
-account. Expect to fix small provider or permission details on the first `terraform plan`.
+- **Bootstrap**: Configured with GCS remote state backend (`permica-ai-dev-134567-tfstate`) and validated via `terraform validate`.
+- **Validation**: All Terraform modules and environment configurations (`environments/dev`, `environments/prod`) have been syntax-checked and validated (`terraform fmt` & `terraform validate`).
+- **CI/CD Workflows**: GitHub Actions workflows (`terraform-dev.yml`, `terraform-prod.yml`) are configured for OIDC authentication via Workload Identity Federation (WIF).
+- **Deployment**: Live infrastructure deployment will execute automatically via GitHub Actions upon merging PRs to `develop` (dev) and `main` (prod).
+
 
 
