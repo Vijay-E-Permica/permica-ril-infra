@@ -150,7 +150,7 @@ Key architectural & security choices governing this codebase:
 | Decision Area | Implementation Choice | Rationale & Trade-offs | Customization / Override |
 |---|---|---|---|
 | **IAM Apply Permissions** | `tf-apply` service account has `roles/owner` | Terraform creates project-level IAM bindings. Protected via GitHub Workload Identity Federation (WIF) branch restriction (`develop` for dev, `main` for prod). | Tighten to custom IAM roles if strict least-privilege is required. |
-| **PR Security & Planning** | Read-only `tf-plan` service account | Runs `terraform plan` on PRs securely. Blocked for fork PRs to prevent state reading. | Add viewer roles to `plan_roles` in [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf) if new GCP resource reads fail. |
+| **PR Security & Planning** | Read-only `tf-plan` service account | Runs `terraform plan` on PRs securely. Blocked for fork PRs to prevent state reading. | Add viewer roles to `plan_roles` in [bootstrap/main.tf](bootstrap/main.tf) if new GCP resource reads fail. |
 | **Cloud Run Ingress** | Public access enabled (`allow_public_access = true`) | Allows web applications / frontend clients to invoke APIs directly. Application layer manages JWT auth. | Set `allow_public_access = false` in `environments/<env>/main.tf` if org policy forbids `allUsers`. |
 | **Cloud SQL Connectivity** | Public IP + `ENCRYPTED_ONLY` (No authorized networks) | Cloud Run connects securely using the built-in Cloud SQL proxy/connector without requiring a VPC. | Migrate to Private IP + VPC Connector if internal network isolation is required. |
 
@@ -174,7 +174,7 @@ Follow this 5-step workflow to add a new environment layer (such as `staging` or
 ### Detailed Step-by-Step Instructions
 
 #### Step 1: Update Bootstrap Configuration
-1. Declare the project ID variable in [bootstrap/variables.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/variables.tf):
+1. Declare the project ID variable in [bootstrap/variables.tf](bootstrap/variables.tf):
    ```hcl
    variable "staging_project_id" {
      type = string
@@ -184,7 +184,7 @@ Follow this 5-step workflow to add a new environment layer (such as `staging` or
      default = "staging"
    }
    ```
-2. Register the environment in `locals.envs` inside [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf):
+2. Register the environment in `locals.envs` inside [bootstrap/main.tf](bootstrap/main.tf):
    ```hcl
    staging = { project_id = var.staging_project_id, deploy_branch = var.staging_branch }
    ```
@@ -236,7 +236,7 @@ terraform destroy
 
 ### Step 2: (Optional) Remove Environment from Bootstrap & GCP Project
 If you wish to completely remove the project, state bucket, and CI service accounts for that environment:
-1. Remove the environment entry from `locals.envs` in [bootstrap/main.tf](file:///Users/vijayanathanelangovan/dev/permica-ril-infra/bootstrap/main.tf).
+1. Remove the environment entry from `locals.envs` in [bootstrap/main.tf](bootstrap/main.tf).
 2. Apply the change in `bootstrap/`:
    ```bash
    cd bootstrap
