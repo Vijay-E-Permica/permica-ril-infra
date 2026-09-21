@@ -41,21 +41,21 @@ terraform {
   backend "gcs" {}
 }
 EOF
-  terraform init -reconfigure -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
+  terraform init -reconfigure -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
 else
   echo "==> Initializing local Terraform workspace..."
   rm -f "$BOOTSTRAP_DIR/backend.tf"
   terraform init -backend=false -reconfigure -input=false
+fi
 
-  if [ -n "${EXISTING_PROJECT:-}" ]; then
-    echo "==> Importing existing GCP bootstrap resources for '$EXISTING_PROJECT' into local state..."
-    terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_project.env[\"${TARGET_ENV}\"]" "$EXISTING_PROJECT" || true
-    terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_storage_bucket.state[\"${TARGET_ENV}\"]" "${EXISTING_PROJECT}/${EXISTING_PROJECT}-tfstate" || true
-    terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_service_account.apply[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/serviceAccounts/tf-apply@${EXISTING_PROJECT}.iam.gserviceaccount.com" || true
-    terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_service_account.plan[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/serviceAccounts/tf-plan@${EXISTING_PROJECT}.iam.gserviceaccount.com" || true
-    terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_iam_workload_identity_pool.github[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/locations/global/workloadIdentityPools/github" || true
-    terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_iam_workload_identity_pool_provider.github[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/locations/global/workloadIdentityPools/github/providers/github" || true
-  fi
+if [ -n "${EXISTING_PROJECT:-}" ]; then
+  echo "==> Ensuring existing GCP bootstrap resources for '$EXISTING_PROJECT' are present in state..."
+  terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_project.env[\"${TARGET_ENV}\"]" "$EXISTING_PROJECT" 2>/dev/null || true
+  terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_storage_bucket.state[\"${TARGET_ENV}\"]" "${EXISTING_PROJECT}/${EXISTING_PROJECT}-tfstate" 2>/dev/null || true
+  terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_service_account.apply[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/serviceAccounts/tf-apply@${EXISTING_PROJECT}.iam.gserviceaccount.com" 2>/dev/null || true
+  terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_service_account.plan[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/serviceAccounts/tf-plan@${EXISTING_PROJECT}.iam.gserviceaccount.com" 2>/dev/null || true
+  terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_iam_workload_identity_pool.github[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/locations/global/workloadIdentityPools/github" 2>/dev/null || true
+  terraform import ${VAR_ARG+"${VAR_ARG[@]}"} "google_iam_workload_identity_pool_provider.github[\"${TARGET_ENV}\"]" "projects/${EXISTING_PROJECT}/locations/global/workloadIdentityPools/github/providers/github" 2>/dev/null || true
 fi
 
 if [ -n "$TARGET_ENV" ]; then
