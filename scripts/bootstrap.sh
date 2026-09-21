@@ -103,7 +103,7 @@ terraform {
   backend "gcs" {}
 }
 EOF
-  terraform init -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
+  terraform init -migrate-state -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
   echo "==> Bootstrap state successfully migrated to GCS bucket '$STATE_BUCKET'!"
 fi
 
