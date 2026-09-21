@@ -25,9 +25,10 @@ GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
 ├── environments/         # Environment configurations
 │   ├── dev/              # Dev layer (calls modules/stack with disposable settings)
 │   └── prod/             # Prod layer (calls modules/stack with HA & scaling settings)
-├── scripts/              # Automation helper bash scripts (update/delete GitHub & app vars, fetch secrets)
+├── scripts/              # Automation helper bash scripts (bootstrap, destroy, update/delete GitHub & app vars, fetch secrets)
 │   ├── bootstrap.sh
 │   ├── delete_github_vars.sh
+│   ├── destroy.sh
 │   ├── get_secret.sh
 │   ├── update_app_github_vars.sh
 │   └── update_github_vars.sh
@@ -126,7 +127,7 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
    # Option B: Provision ALL environments (dev & prod):
    ./scripts/bootstrap.sh
    ```
-   This provisions the GCP project, state bucket, GitHub OIDC trust, and CI service accounts for the targeted environment(s), and generates `environments/<env>/backend.tf`. To use an existing project, run `terraform import 'google_project.env["dev"]' <project-id>` first.
+   This provisions the GCP project, state bucket, GitHub OIDC trust, and CI service accounts for the targeted environment(s). State is automatically migrated to the GCS state bucket, and temporary local files (`backend.tf`, `.terraform/`, `terraform.tfstate`) are cleaned up automatically upon completion. To use an existing project, run `terraform import 'google_project.env["dev"]' <project-id>` first.
 
 3. **Tell GitHub about it**
    - Set variables via helper script or `gh` CLI:
@@ -143,7 +144,7 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
 4. **Fill in the environments**
    Edit `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars`
    (project IDs must match step 2; put your team's Google Groups in the member lists).
-   Commit everything, including the generated `backend.tf` files.
+   Commit your changes to version control.
 
 5. **First deploy — through CI**
    Push/merge to `develop` (creates dev), then open a PR `develop → main` and merge it

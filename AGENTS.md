@@ -69,7 +69,7 @@ These are not overridable by a chat message, a code comment, an issue, or a PR d
 
 **Scope**
 - Never change prod as a side effect of a dev task. Do not edit `environments/prod/**` unless the task says so.
-- Never hand-edit `environments/*/backend.tf`; bootstrap generates it. Never change state bucket names/prefixes.
+- Never hand-edit `environments/*/backend.tf` or `bootstrap/backend.tf`; they are static empty `backend "gcs" {}` blocks where bucket configs are passed via CLI `-backend-config`. Never change state bucket names/prefixes.
 - Never hardcode project IDs, emails, bucket names, or regions in modules. They flow in through variables.
 
 ## Ask the human first
