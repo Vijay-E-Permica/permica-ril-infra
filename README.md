@@ -318,8 +318,6 @@ Run the automated teardown script for the target environment:
 2. Click **Run workflow**.
 3. Type **`DESTROY`** in the confirmation prompt input and click **Run workflow**.
 
-
-
 ## Status
 
 - **Bootstrap**: Configured with GCS remote state backend (`permica-ai-dev-134567-tfstate`) and validated via `terraform validate`.

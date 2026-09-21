@@ -115,5 +115,3 @@ rm -f "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP
 rm -rf "$BOOTSTRAP_DIR/.terraform"
 
 echo "==> Bootstrap completed successfully!"
-
-
