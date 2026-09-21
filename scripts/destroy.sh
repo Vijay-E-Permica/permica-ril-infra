@@ -82,8 +82,6 @@ if [ -d "$BOOTSTRAP_DIR" ]; then
   fi
 
   if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ] && gcloud storage buckets describe "gs://${STATE_BUCKET}" &>/dev/null; then
-    echo "==> Clearing state bucket 'gs://${STATE_BUCKET}' prior to teardown..."
-    gcloud storage rm --recursive "gs://${STATE_BUCKET}/**" &>/dev/null || true
     cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
 terraform {
   backend "gcs" {}
