@@ -99,7 +99,7 @@ resource "google_storage_bucket" "state" {
   location                    = var.state_bucket_location
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
-  force_destroy               = false
+  force_destroy               = each.key == "prod" ? false : true
 
   versioning {
     enabled = true
