@@ -103,17 +103,17 @@ else
   terraform apply -auto-approve ${VAR_ARG+"${VAR_ARG[@]}"}
 fi
 
-# Configure GCS backend for bootstrap state
-STATE_BUCKET=$(terraform output -json state_buckets | jq -r 'to_entries[0].value // empty')
+# Migrate state to GCS bucket if backend.tf was not configured prior to apply
+STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r 'to_entries[0].value // empty')
 
-if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
+if [ ! -f "$BOOTSTRAP_DIR/backend.tf" ] && [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
   echo "==> Migrating bootstrap state to GCS bucket '$STATE_BUCKET'..."
   cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
 terraform {
   backend "gcs" {}
 }
 EOF
-  terraform init -migrate-state -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
+  terraform init -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
   echo "==> Bootstrap state successfully migrated to GCS bucket '$STATE_BUCKET'!"
 fi
 
