@@ -25,7 +25,13 @@ GitHub → GCP authentication via Workload Identity Federation (no JSON keys).
 ├── environments/         # Environment configurations
 │   ├── dev/              # Dev layer (calls modules/stack with disposable settings)
 │   └── prod/             # Prod layer (calls modules/stack with HA & scaling settings)
-├── scripts/              # Automation helper bash scripts (update/delete GitHub vars, fetch secrets)
+├── scripts/              # Automation helper bash scripts (bootstrap, destroy, update/delete GitHub & app vars, fetch secrets)
+│   ├── bootstrap.sh
+│   ├── delete_github_vars.sh
+│   ├── destroy.sh
+│   ├── get_secret.sh
+│   ├── update_app_github_vars.sh
+│   └── update_github_vars.sh
 ├── .github/workflows/    # CI/CD pipelines (terraform-dev.yml, terraform-prod.yml)
 └── docs/                 # Guides & example workflows (app deployment, component upgrades)
 ```
@@ -121,7 +127,7 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
    # Option B: Provision ALL environments (dev & prod):
    ./scripts/bootstrap.sh
    ```
-   This provisions the GCP project, state bucket, GitHub OIDC trust, and CI service accounts for the targeted environment(s), and generates `environments/<env>/backend.tf`. To use an existing project, run `terraform import 'google_project.env["dev"]' <project-id>` first.
+   This provisions the GCP project, state bucket, GitHub OIDC trust, and CI service accounts for the targeted environment(s). State is automatically migrated to the GCS state bucket, and temporary local files (`backend.tf`, `.terraform/`, `terraform.tfstate`) are cleaned up automatically upon completion. To use an existing project, run `terraform import 'google_project.env["dev"]' <project-id>` first.
 
 3. **Tell GitHub about it**
    - Set variables via helper script or `gh` CLI:
@@ -138,7 +144,7 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
 4. **Fill in the environments**
    Edit `environments/dev/terraform.tfvars` and `environments/prod/terraform.tfvars`
    (project IDs must match step 2; put your team's Google Groups in the member lists).
-   Commit everything, including the generated `backend.tf` files.
+   Commit your changes to version control.
 
 5. **First deploy — through CI**
    Push/merge to `develop` (creates dev), then open a PR `develop → main` and merge it
@@ -154,6 +160,13 @@ You need: `gcloud`, Terraform ≥ 1.9, a GCP billing account, and a GitHub repo 
 - Terraform never redeploys your application. CI owns the running image (Terraform ignores
   image changes on Cloud Run). Use `docs/deploy-app.example.yml` in your app repo.
   `terraform output app_deploy_github_variables` (in each environment folder) prints the values it needs.
+- **Sync Application Repo Variables**:
+  Set/update application repository GitHub Action variables (e.g., for `permica-core`) using:
+  ```bash
+  ./scripts/update_app_github_vars.sh <target-repo> [dev|prod]
+  # Example:
+  ./scripts/update_app_github_vars.sh Vijay-E-Permica/permica-core dev
+  ```
 
 ## Secrets
 
@@ -289,40 +302,21 @@ Sync the environment's Terraform outputs to GitHub Actions repo variables:
 ## Destroying an environment
 
 > [!WARNING]
-> Destroying an environment permanently removes all infrastructure resources (Cloud SQL databases, Cloud Storage buckets, Cloud Run services). Ensure you back up critical data prior to destruction.
+> Destroying an environment permanently removes all infrastructure resources (Cloud SQL databases, Cloud Storage buckets, Cloud Run services), state buckets, GitHub variables, and the GCP project. Ensure you back up critical data prior to destruction.
 
 To dismantle and delete a specific environment (e.g., `dev` or a custom environment like `staging`):
 
-### Step 1: Destroy Environment Infrastructure
+### Option A: Via Helper Bash Script (Recommended)
+Run the automated teardown script for the target environment:
+```bash
+./scripts/destroy.sh dev      # Teardown dev environment & project
+./scripts/destroy.sh staging  # Teardown staging environment & project
+```
 
-#### Option A: Via GitHub Actions (Manual Workflow Dispatch)
+### Option B: Via GitHub Actions (Manual Workflow Dispatch)
 1. Go to **GitHub Repo -> Actions -> Terraform Destroy (dev)**.
 2. Click **Run workflow**.
 3. Type **`DESTROY`** in the confirmation prompt input and click **Run workflow**.
-
-#### Option B: Via Local Terminal
-Navigate to the environment directory and run `terraform destroy`:
-```bash
-cd environments/dev
-terraform init
-terraform destroy -var-file=terraform.tfvars
-```
-
-
-### Step 2: (Optional) Remove Environment from Bootstrap & GCP Project
-If you wish to completely remove the project, state bucket, and CI service accounts for that environment:
-1. Delete the GitHub repository variables associated with the environment:
-   ```bash
-   ./scripts/delete_github_vars.sh dev   # Replace 'dev' with target env (e.g. staging)
-   ```
-2. Remove the environment entry from `locals.envs` in [bootstrap/main.tf](bootstrap/main.tf).
-3. Apply the change in `bootstrap/`:
-   ```bash
-   cd bootstrap
-   terraform apply
-   ```
-   *(Note: `deletion_protection` is enabled for production projects by default; set `deletion_policy = "DELETE"` or remove project protection if destroying prod).*
-4. Remove the corresponding workflow file `.github/workflows/terraform-<env>.yml`.
 
 ## Status
 

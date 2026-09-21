@@ -46,7 +46,7 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
           service_account: ${{ vars.GCP_TF_PLAN_SA_DEV }}
 
-      - run: terraform init -input=false
+      - run: terraform init -input=false -backend-config="bucket=${{ vars.GCP_PROJECT_ID_DEV }}-tfstate" -backend-config="prefix=terraform/state"
 
       - run: terraform validate
 
@@ -73,7 +73,6 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER_DEV }}
           service_account: ${{ vars.GCP_TF_APPLY_SA_DEV }}
 
-      - run: terraform init -input=false
+      - run: terraform init -input=false -backend-config="bucket=${{ vars.GCP_PROJECT_ID_DEV }}-tfstate" -backend-config="prefix=terraform/state"
 
       - run: terraform apply -auto-approve -input=false -var-file=terraform.tfvars -lock-timeout=10m
-
