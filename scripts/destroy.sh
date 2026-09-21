@@ -70,10 +70,18 @@ if [ -d "$BOOTSTRAP_DIR" ]; then
   echo "==> Destroying bootstrap resources targeting environment '$TARGET_ENV'..."
   cd "$BOOTSTRAP_DIR"
 
-  # Fetch state bucket if available
-  STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
+  APP_NAME=$(grep -E '^\s*app_name\s*=' "$BOOTSTRAP_DIR/terraform.tfvars" 2>/dev/null | cut -d'=' -f2 | tr -d ' "' || echo "permica-ai")
+  EXISTING_PROJECT=$(gcloud projects list --filter="name=${APP_NAME}-${TARGET_ENV} AND lifecycleState=ACTIVE" --format="value(projectId)" 2>/dev/null | head -n 1 || true)
+  
+  VAR_ARG=()
+  if [ -n "$EXISTING_PROJECT" ]; then
+    VAR_ARG=("-var" "${TARGET_ENV}_project_id=${EXISTING_PROJECT}")
+    STATE_BUCKET="${EXISTING_PROJECT}-tfstate"
+  else
+    STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
+  fi
 
-  if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
+  if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ] && gcloud storage buckets describe "gs://${STATE_BUCKET}" &>/dev/null; then
     cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
 terraform {
   backend "gcs" {}
@@ -121,7 +129,7 @@ EOF
     TARGET_ARGS+=("-target=google_project_iam_member.plan[\"${TARGET_ENV}/${role}\"]")
   done
 
-  terraform destroy -auto-approve "${TARGET_ARGS[@]}" || true
+  terraform destroy -auto-approve ${VAR_ARG+"${VAR_ARG[@]}"} "${TARGET_ARGS[@]}" || true
 
   # Cleanup temporary files, lock files, and local backend state
   rm -rf "$BOOTSTRAP_DIR/.terraform" "$BOOTSTRAP_DIR/.terraform.lock.hcl" "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
