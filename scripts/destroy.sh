@@ -56,6 +56,9 @@ if [ -f "$ENV_DIR/terraform.tfvars" ]; then
   else
     terraform init -backend=false -reconfigure -input=false || true
   fi
+
+  # Clean up temporary .terraform cache directory, lock file, and state files from environment directory
+  rm -rf "$ENV_DIR/.terraform" "$ENV_DIR/.terraform.lock.hcl" "$ENV_DIR/terraform.tfstate" "$ENV_DIR/terraform.tfstate.backup"
 fi
 
 # Step 2: Remove GitHub repository variables for this environment
@@ -120,8 +123,8 @@ EOF
 
   terraform destroy -auto-approve "${TARGET_ARGS[@]}" || true
 
-  # Cleanup temporary files and local backend state
-  rm -rf "$BOOTSTRAP_DIR/.terraform" "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
+  # Cleanup temporary files, lock files, and local backend state
+  rm -rf "$BOOTSTRAP_DIR/.terraform" "$BOOTSTRAP_DIR/.terraform.lock.hcl" "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
 fi
 
 echo "==> Environment '$TARGET_ENV' destroyed successfully!"
