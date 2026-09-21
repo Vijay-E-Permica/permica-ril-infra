@@ -20,14 +20,20 @@ fi
 
 cd "$BOOTSTRAP_DIR"
 
-echo "==> Initializing local Terraform workspace in $BOOTSTRAP_DIR..."
-if [ -f "$BOOTSTRAP_DIR/terraform.tfstate" ]; then
-  STATE_BUCKET=$(terraform output -json state_buckets 2>/dev/null | jq -r --arg env "$TARGET_ENV" '.[$env] // empty' 2>/dev/null || true)
+# Check if an active GCP project already exists for this app and environment
+APP_NAME=$(grep -E '^\s*app_name\s*=' "$BOOTSTRAP_DIR/terraform.tfvars" 2>/dev/null | cut -d'=' -f2 | tr -d ' "' || echo "permica-ai")
+
+if [ -n "$TARGET_ENV" ]; then
+  EXISTING_PROJECT=$(gcloud projects list --filter="name=${APP_NAME}-${TARGET_ENV} AND lifecycleState=ACTIVE" --format="value(projectId)" 2>/dev/null | head -n 1 || true)
+  if [ -n "$EXISTING_PROJECT" ]; then
+    echo "==> Found existing active GCP project: '$EXISTING_PROJECT'"
+    VAR_ARG=("-var=${TARGET_ENV}_project_id=${EXISTING_PROJECT}")
+    STATE_BUCKET="${EXISTING_PROJECT}-tfstate"
+  fi
 fi
 
-if [ -n "${STATE_BUCKET:-}" ] && [ "$STATE_BUCKET" != "null" ]; then
+if [ -n "${STATE_BUCKET:-}" ] && gcloud storage buckets describe "gs://${STATE_BUCKET}" &>/dev/null; then
   echo "==> Initializing backend with GCS bucket '$STATE_BUCKET'..."
-  # Re-create backend.tf on the fly for GCS remote state initialization
   cat <<EOF > "$BOOTSTRAP_DIR/backend.tf"
 terraform {
   backend "gcs" {}
@@ -79,10 +85,10 @@ if [ -n "$TARGET_ENV" ]; then
     TARGET_ARGS+=("-target=google_project_iam_member.plan[\"${TARGET_ENV}/${role}\"]")
   done
 
-  terraform apply -auto-approve "${TARGET_ARGS[@]}"
+  terraform apply -auto-approve "${VAR_ARG[@]:-}" "${TARGET_ARGS[@]}"
 else
   echo "==> Running bootstrap terraform apply for ALL environments..."
-  terraform apply -auto-approve
+  terraform apply -auto-approve "${VAR_ARG[@]:-}"
 fi
 
 # Automatically configure GCS backend for bootstrap and migrate local state
