@@ -93,7 +93,7 @@ else
   terraform apply -auto-approve ${VAR_ARG+"${VAR_ARG[@]}"}
 fi
 
-# Automatically configure GCS backend for bootstrap and migrate local state
+# Configure GCS backend for bootstrap state
 STATE_BUCKET=$(terraform output -json state_buckets | jq -r 'to_entries[0].value // empty')
 
 if [ -n "$STATE_BUCKET" ] && [ "$STATE_BUCKET" != "null" ]; then
@@ -104,12 +104,15 @@ terraform {
 }
 EOF
   terraform init -force-copy -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state"
-  rm -f "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
   echo "==> Bootstrap state successfully migrated to GCS bucket '$STATE_BUCKET'!"
 fi
 
-# Clean up local .terraform cache directory after bootstrap completes
-rm -rf "$BOOTSTRAP_DIR/.terraform" "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
+echo "==> Updating GitHub repository variables..."
+"$REPO_ROOT/scripts/update_github_vars.sh" "$TARGET_ENV"
+
+# Clean up local temporary state and backend configuration
+rm -f "$BOOTSTRAP_DIR/backend.tf" "$BOOTSTRAP_DIR/terraform.tfstate" "$BOOTSTRAP_DIR/terraform.tfstate.backup"
+rm -rf "$BOOTSTRAP_DIR/.terraform"
 
 echo "==> Bootstrap completed successfully!"
 
