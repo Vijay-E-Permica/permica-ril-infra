@@ -87,10 +87,10 @@ if [ -n "$TARGET_ENV" ]; then
     TARGET_ARGS+=("-target=google_project_iam_member.plan[\"${TARGET_ENV}/${role}\"]")
   done
 
-  terraform apply -auto-approve "${VAR_ARG[@]}" "${TARGET_ARGS[@]}"
+  terraform apply -auto-approve ${VAR_ARG+"${VAR_ARG[@]}"} "${TARGET_ARGS[@]}"
 else
   echo "==> Running bootstrap terraform apply for ALL environments..."
-  terraform apply -auto-approve "${VAR_ARG[@]}"
+  terraform apply -auto-approve ${VAR_ARG+"${VAR_ARG[@]}"}
 fi
 
 # Automatically configure GCS backend for bootstrap and migrate local state
