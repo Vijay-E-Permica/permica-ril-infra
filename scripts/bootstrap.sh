@@ -23,11 +23,13 @@ cd "$BOOTSTRAP_DIR"
 # Check if an active GCP project already exists for this app and environment
 APP_NAME=$(grep -E '^\s*app_name\s*=' "$BOOTSTRAP_DIR/terraform.tfvars" 2>/dev/null | cut -d'=' -f2 | tr -d ' "' || echo "permica-ai")
 
+VAR_ARG=()
+
 if [ -n "$TARGET_ENV" ]; then
   EXISTING_PROJECT=$(gcloud projects list --filter="name=${APP_NAME}-${TARGET_ENV} AND lifecycleState=ACTIVE" --format="value(projectId)" 2>/dev/null | head -n 1 || true)
   if [ -n "$EXISTING_PROJECT" ]; then
     echo "==> Found existing active GCP project: '$EXISTING_PROJECT'"
-    VAR_ARG=("-var=${TARGET_ENV}_project_id=${EXISTING_PROJECT}")
+    VAR_ARG=("-var" "${TARGET_ENV}_project_id=${EXISTING_PROJECT}")
     STATE_BUCKET="${EXISTING_PROJECT}-tfstate"
   fi
 fi
@@ -85,10 +87,10 @@ if [ -n "$TARGET_ENV" ]; then
     TARGET_ARGS+=("-target=google_project_iam_member.plan[\"${TARGET_ENV}/${role}\"]")
   done
 
-  terraform apply -auto-approve "${VAR_ARG[@]:-}" "${TARGET_ARGS[@]}"
+  terraform apply -auto-approve "${VAR_ARG[@]}" "${TARGET_ARGS[@]}"
 else
   echo "==> Running bootstrap terraform apply for ALL environments..."
-  terraform apply -auto-approve "${VAR_ARG[@]:-}"
+  terraform apply -auto-approve "${VAR_ARG[@]}"
 fi
 
 # Automatically configure GCS backend for bootstrap and migrate local state
