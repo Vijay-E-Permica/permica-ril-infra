@@ -39,17 +39,23 @@ fi
 if [ -f "$ENV_DIR/terraform.tfvars" ]; then
   echo "==> Destroying application stack infrastructure in $ENV_DIR..."
   cd "$BOOTSTRAP_DIR"
-  PROJECT_ID=$(terraform output -json github_variables | jq -r --arg env "_$(echo "$TARGET_ENV" | tr '[:lower:]' '[:upper:]')" 'to_entries[] | select(.key | endswith($env)) | select(.key | startswith("GCP_PROJECT_ID")) | .value' || true)
+  PROJECT_ID=$(terraform output -json github_variables 2>/dev/null | jq -r --arg env "_$(echo "$TARGET_ENV" | tr '[:lower:]' '[:upper:]')" 'to_entries[] | select(.key | endswith($env)) | select(.key | startswith("GCP_PROJECT_ID")) | .value' 2>/dev/null || true)
 
   cd "$ENV_DIR"
+  rm -rf "$ENV_DIR/.terraform"
   if [ -n "$PROJECT_ID" ] && [ "$PROJECT_ID" != "null" ]; then
-    echo "==> Initializing backend with bucket '${PROJECT_ID}-tfstate'..."
-    terraform init -input=false -backend-config="bucket=${PROJECT_ID}-tfstate" -backend-config="prefix=terraform/state" || true
+    STATE_BUCKET="${PROJECT_ID}-tfstate"
+    # Check if the state bucket actually exists on GCS before attempting backend init
+    if gcloud storage buckets describe "gs://${STATE_BUCKET}" &>/dev/null; then
+      echo "==> Initializing backend with bucket '${STATE_BUCKET}'..."
+      terraform init -reconfigure -input=false -backend-config="bucket=${STATE_BUCKET}" -backend-config="prefix=terraform/state" || true
+      terraform destroy -auto-approve -input=false -var-file=terraform.tfvars || true
+    else
+      echo "==> State bucket '${STATE_BUCKET}' does not exist on GCS (skipping stack destroy)."
+    fi
   else
-    terraform init -input=false || true
+    terraform init -backend=false -reconfigure -input=false || true
   fi
-
-  terraform destroy -auto-approve -input=false -var-file=terraform.tfvars || true
 fi
 
 # Step 2: Remove GitHub repository variables for this environment
