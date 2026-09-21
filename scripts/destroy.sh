@@ -88,6 +88,9 @@ terraform {
 }
 EOF
     terraform init -reconfigure -input=false -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=bootstrap/state" || true
+    # Migrate state from GCS back to local before destroying storage bucket and project
+    rm -f "$BOOTSTRAP_DIR/backend.tf"
+    terraform init -force-copy -backend=false -reconfigure -input=false || true
   else
     rm -f "$BOOTSTRAP_DIR/backend.tf"
     terraform init -backend=false -reconfigure -input=false || true
